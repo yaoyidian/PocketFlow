@@ -52,7 +52,7 @@ NV_GPU="${idle_gpus}" nvidia-docker run -it --rm --hostname=local-env \
     -v ${dir_temp_model}:/opt/ml/model \
     -v ${dir_temp_data}:/opt/ml/data \
     -w /opt/ml/env \
-    docker.oa.com/g_tfplus/horovod:python3.5 bash
+    horovod /bin/bash
 
 # return to the main directory
 rm -rf ${dir_temp_log} ${dir_temp_model}
