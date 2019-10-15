@@ -1,5 +1,5 @@
 import tensorflow as tf
-from resnet50_factory import conv_layer,max_pool,res_block_3_layers,concat_layer,transpose_layer,upsample
+from nets.resnet50_factory import conv_layer,max_pool,res_block_3_layers,concat_layer,transpose_layer,upsample
 
 def resnet_openpose_build(inputs,num_joints, num_pafs,is_training=True):
     with tf.variable_scope('BackBone', reuse=tf.AUTO_REUSE):
@@ -119,7 +119,7 @@ def resnet_openpose_build(inputs,num_joints, num_pafs,is_training=True):
         net_stage1_1 = conv_layer(net_stage1_1, out_channels=128, kernel_size=3, stride=1, bn=False,training=is_training)
         heatmap1 = conv_layer(net_stage1_1, out_channels=128, kernel_size=1, stride=1, bn=False,training=is_training)
         heatmap1 = conv_layer(heatmap1, out_channels=num_joints, kernel_size=1, stride=1, relu=False,bn=False, training=is_training)
-        stages_output = [heatmap1, paf1]
+        stages_output = [[heatmap1, paf1]]
         outs1 = tf.concat([net_cpm, heatmap1, paf1], axis=-1)
     with tf.variable_scope('RefinementStage_2', reuse=tf.AUTO_REUSE):
         net_stage2 = conv_layer(outs1, out_channels=128, kernel_size=3, stride=1, bn=False,training=is_training)
@@ -139,7 +139,7 @@ def resnet_openpose_build(inputs,num_joints, num_pafs,is_training=True):
         net_stage2_1 = conv_layer(net_stage2_1, out_channels=128, kernel_size=3, stride=1,bn=False, training=is_training)
         heatmap2 = conv_layer(net_stage2_1, out_channels=128, kernel_size=1, stride=1,bn=False, training=is_training)
         heatmap2 = conv_layer(heatmap2, out_channels=num_joints, kernel_size=1, stride=1, relu=False, bn=False,training=is_training)
-        stages_output.extend([heatmap2, paf2])
+        stages_output.append([heatmap2, paf2])
         outs2 = tf.concat([net_cpm, heatmap2, paf2], axis=-1)
     with tf.variable_scope('RefinementStage_3', reuse=tf.AUTO_REUSE):
         net_stage3 = conv_layer(outs2, out_channels=128, kernel_size=3, stride=1, bn=False,training=is_training)
@@ -159,7 +159,7 @@ def resnet_openpose_build(inputs,num_joints, num_pafs,is_training=True):
         net_stage3_1 = conv_layer(net_stage3_1, out_channels=128, kernel_size=3, stride=1,bn=False, training=is_training)
         heatmap3 = conv_layer(net_stage3_1, out_channels=128, kernel_size=1, stride=1, bn=False,training=is_training)
         heatmap3 = conv_layer(heatmap3, out_channels=num_joints, kernel_size=1, stride=1, relu=False,bn=False, training=is_training)
-        stages_output.extend([heatmap3, paf3])
+        stages_output.append([heatmap3, paf3])
         outs3 = tf.concat([net_cpm, heatmap3, paf3], axis=-1)
     with tf.variable_scope('RefinementStage_4', reuse=tf.AUTO_REUSE):
         net_stage4 = conv_layer(outs3, out_channels=128, kernel_size=3, stride=1,bn=False, training=is_training)
@@ -179,7 +179,7 @@ def resnet_openpose_build(inputs,num_joints, num_pafs,is_training=True):
         net_stage4_1 = conv_layer(net_stage4_1, out_channels=128, kernel_size=3, stride=1,bn=False, training=is_training)
         heatmap4 = conv_layer(net_stage4_1, out_channels=128, kernel_size=1, stride=1,bn=False, training=is_training)
         heatmap4 = conv_layer(heatmap4, out_channels=num_joints, kernel_size=1, stride=1, relu=False,bn=False, training=is_training)
-        stages_output.extend([heatmap4, paf4])
+        stages_output.append([heatmap4, paf4])
         outs4 = tf.concat([net_cpm, heatmap4, paf4], axis=-1)
     with tf.variable_scope('RefinementStage_5', reuse=tf.AUTO_REUSE):
         net_stage5 = conv_layer(outs4, out_channels=128, kernel_size=3, stride=1,bn=False, training=is_training)
@@ -199,7 +199,7 @@ def resnet_openpose_build(inputs,num_joints, num_pafs,is_training=True):
         net_stage5_1 = conv_layer(net_stage5_1, out_channels=128, kernel_size=3, stride=1,bn=False, training=is_training)
         heatmap5 = conv_layer(net_stage5_1, out_channels=128, kernel_size=1, stride=1,bn=False, training=is_training)
         heatmap5 = conv_layer(heatmap5, out_channels=num_joints, kernel_size=1, stride=1, relu=False, bn=False,training=is_training)
-        stages_output.extend([heatmap5, paf5])
+        stages_output.append([heatmap5, paf5])
 
     return stages_output
 

@@ -56,7 +56,10 @@ class FullPrecLearner(AbstractLearner):  # pylint: disable=too-many-instance-att
 
   def train(self):
     """Train a model and periodically produce checkpoint files."""
-
+    try:
+        self.saver_train.restore(self.sess_train, save_path)
+    except:
+        print('initialize failed!!!')
     # initialization
     self.sess_train.run(self.init_op)
     self.warm_start(self.sess_train)

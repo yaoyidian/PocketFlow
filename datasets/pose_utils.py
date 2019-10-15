@@ -2,12 +2,12 @@ import math
 import os
 from distutils.dir_util import mkpath
 
-import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.distance import cdist
+from scipy.misc import imresize
 import tensorflow as tf
-from train_config import config
+
 from pycocotools.coco import COCO, maskUtils
 from tensorlayer import logging
 from tensorlayer.files.utils import (del_file, folder_exists, maybe_download_and_extract)
@@ -15,8 +15,8 @@ from tensorlayer.files.utils import (del_file, folder_exists, maybe_download_and
 n_pos = 21
 hin = 320
 win = 384
-hout = hin/8
-wout = win/8
+hout = int(hin/8)
+wout = int(win/8)
 def get_pose_data_list(im_path, ann_path):
     """
     train_im_path : image folder name
@@ -92,7 +92,7 @@ def _data_aug_fn(image, ground_truth):
     image = image * np.repeat(img_mask, 3, 2)
 
     resultmap = np.array(resultmap, dtype=np.float32)
-    mask_miss = cv2.resize(mask_miss, (hout, wout), interpolation=cv2.INTER_AREA)
+    mask_miss = imresize(mask_miss, (hout, wout))
     mask_miss = np.array(mask_miss, dtype=np.float32)
     return image, resultmap, mask_miss
 
@@ -131,8 +131,9 @@ def _mock_map_fn(img_list, annos):
 class CocoMeta:
     """ Be used in PoseInfo. """
     limb = list(
-        zip([2, 9, 10, 2, 12, 13, 2, 3, 4, 3, 2, 6, 7, 6, 2, 1, 1, 15, 16],
-            [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18]))
+        zip(            
+		[1, 6, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4,18,19],
+		[1, 7, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4,18,19]))
 
     def __init__(self, idx, img_url, img_meta, annotations, masks):
         self.idx = idx
@@ -157,8 +158,8 @@ class CocoMeta:
         self.joint_list = []
         # 对原 COCO 数据集的转换 其中第二位之所以不一样是为了计算 Neck 等于左右 shoulder 的中点
         transform = list(
-            zip([1, 6, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4],
-                [1, 7, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4]))
+            zip([1, 6, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4,18,19],
+                [1, 7, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4,18,19]))
         for prev_joint in joint_list:
             new_joint = []
             for idx1, idx2 in transform:
@@ -172,7 +173,7 @@ class CocoMeta:
 
             # for background
             new_joint.append((-1000, -1000))
-            if len(new_joint) != 19:
+            if len(new_joint) != n_pos:
                 print('The Length of joints list should be 0 or 19 but actually:', len(new_joint))
             self.joint_list.append(new_joint)
 
@@ -301,7 +302,7 @@ def get_heatmap(annos, height, width):
     """
 
     # 19 for coco, 15 for MPII
-    num_joints = 19
+    num_joints = n_pos
 
     # the heatmap for every joints takes the maximum over all people
     joints_heatmap = np.zeros((num_joints, height, width), dtype=np.float32)
@@ -323,8 +324,8 @@ def get_heatmap(annos, height, width):
     joints_heatmap[:, :, -1] = np.clip(1 - np.amax(joints_heatmap, axis=2), 0.0, 1.0)
 
     mapholder = []
-    for i in range(0, 19):
-        a = cv2.resize(np.array(joints_heatmap[:, :, i]), (hout, wout))
+    for i in range(0, num_joints):
+        a = imresize(np.array(joints_heatmap[:, :, i]), (hout, wout))
         mapholder.append(a)
     mapholder = np.array(mapholder)
     joints_heatmap = mapholder.transpose(1, 2, 0)
@@ -372,11 +373,12 @@ def get_vectormap(annos, height, width):
     Returns
     --------
     """
-    num_joints = 19
+    num_joints = n_pos
 
     limb = list(
-        zip([2, 9, 10, 2, 12, 13, 2, 3, 4, 3, 2, 6, 7, 6, 2, 1, 1, 15, 16],
-            [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18]))
+        zip(        
+		[2, 9,  10, 2,  12, 13, 2, 3, 4, 3,  2, 6, 7, 6,  2, 1,  1,  15, 16, 11,14],
+        [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18, 20,19]))
 
     vectormap = np.zeros((num_joints * 2, height, width), dtype=np.float32)
     counter = np.zeros((num_joints, height, width), dtype=np.int16)
