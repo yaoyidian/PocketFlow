@@ -10,11 +10,12 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_float('nb_epochs_rat', 1.0, '# of training epochs\' ratio')
 tf.app.flags.DEFINE_float('lrn_rate_init', 1e-1, 'initial learning rate')
-tf.app.flags.DEFINE_float('batch_size_norm', 16, 'normalization factor of batch size')
+tf.app.flags.DEFINE_float('batch_size_norm', 8, 'normalization factor of batch size')
 tf.app.flags.DEFINE_float('momentum', 0.9, 'momentum coefficient')
 tf.app.flags.DEFINE_float('loss_w_dcy', 3e-4, 'weight decaying loss\'s coefficient')
 
 n_pos = 21
+val_pos = 19
 def tf_repeat(tensor, repeats):
     """
     Args:
@@ -32,35 +33,37 @@ def tf_repeat(tensor, repeats):
 def forward_fn(inputs,is_train=True):
     inputs = resnet_openpose_build(inputs,21,42,is_train)
     if not is_train:
-        inputs = inputs[-1]
+        inputs = [inputs[-1]]
     return inputs
 
 def calc_loss_fn(outputs,objects):
     results = objects['resultmap']
     mask = objects['mask']
-    
-    confs = results[:, :, :, :n_pos]
-    pafs = results[:, :, :, n_pos:]
-    m1 = tf_repeat(mask, [1, 1, 1, n_pos])
-    m2 = tf_repeat(mask, [1, 1, 1, n_pos * 2])
-    b1_list = [ outputs[i][0] for i in range(len(outputs))]
-    b2_list = [ outputs[i][1] for i in range(len(outputs))]
+    if len(outputs)!=1:
+        confs = results[:, :, :, :n_pos]
+        pafs = results[:, :, :, n_pos:]
+        m1 = tf_repeat(mask, [1, 1, 1, n_pos])
+        m2 = tf_repeat(mask, [1, 1, 1, n_pos * 2])
+    else:
+        return 1000
+    # b1_list = [ outputs[i][0] for i in range(len(outputs))]
+    # b2_list = [ outputs[i][1] for i in range(len(outputs))]
     # define loss
     losses = []
     last_losses_l1 = []
     last_losses_l2 = []
     stage_losses = []
     
-    for idx, (l1, l2) in enumerate(zip(b1_list, b2_list)):
-        loss_l1 = tf.nn.l2_loss((l1 - confs) * m1)
-        loss_l2 = tf.nn.l2_loss((l2 - pafs) * m2)
-
+    for idx in range(len(outputs)):
+        loss_l1 = tf.nn.l2_loss((outputs[idx][0] - confs) * m1)
+        loss_l2 = tf.nn.l2_loss((outputs[idx][1] - pafs) * m2)
+        
         losses.append(tf.reduce_mean([loss_l1, loss_l2]))
         stage_losses.append(loss_l1 / FLAGS.batch_size)
         stage_losses.append(loss_l2 / FLAGS.batch_size)
 
-    last_conf = b1_list[-1]
-    last_paf = b2_list[-1]
+    last_conf = outputs[-1][0]
+    last_paf =  outputs[-1][1]
     last_losses_l1.append(loss_l1)
     last_losses_l2.append(loss_l2)
     l2_loss = 0.0
@@ -108,9 +111,9 @@ class ModelHelper(AbstractModelHelper):
 
     loss = calc_loss_fn(outputs,objects)
     
-    # metrics = {'accuracy': accuracy}
+    metrics = {'loss': loss}
 
-    return loss
+    return loss,metrics
 
   def setup_lrn_rate(self, global_step):
     """Setup the learning rate (and number of training iterations)."""

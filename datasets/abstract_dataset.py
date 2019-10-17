@@ -29,7 +29,7 @@ tf.app.flags.DEFINE_string('data_dir_local', None, 'data directory - local')
 tf.app.flags.DEFINE_string('data_dir_hdfs', None, 'data directory - HDFS')
 tf.app.flags.DEFINE_integer('cycle_length', 4, '# of datasets to interleave from in parallel')
 tf.app.flags.DEFINE_integer('nb_threads', 8, '# of threads for preprocessing the dataset')
-tf.app.flags.DEFINE_integer('buffer_size', 1024, '# of elements to be buffered when prefetching')
+tf.app.flags.DEFINE_integer('buffer_size', 100, '# of elements to be buffered when prefetching')
 tf.app.flags.DEFINE_integer('prefetch_size', 8, '# of mini-batches to be buffered when prefetching')
 
 class AbstractDataset(ABC):

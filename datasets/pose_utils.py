@@ -1,13 +1,13 @@
 import math
 import os
 from distutils.dir_util import mkpath
-
+import tensorlayer as tl
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.distance import cdist
-from scipy.misc import imresize
+import cv2
 import tensorflow as tf
-
+import _pickle as cPickle
 from pycocotools.coco import COCO, maskUtils
 from tensorlayer import logging
 from tensorlayer.files.utils import (del_file, folder_exists, maybe_download_and_extract)
@@ -15,8 +15,8 @@ from tensorlayer.files.utils import (del_file, folder_exists, maybe_download_and
 n_pos = 21
 hin = 320
 win = 384
-hout = int(hin/8)
-wout = int(win/8)
+hout = 40
+wout = 48
 def get_pose_data_list(im_path, ann_path):
     """
     train_im_path : image folder name
@@ -77,22 +77,21 @@ def _data_aug_fn(image, ground_truth):
     # image, annos, mask_miss = tl.prepro.keypoint_random_crop(image, annos, mask_miss, size=(hin, win))  # with padding # removed hao
 
     image, annos, mask_miss = tl.prepro.keypoint_random_flip(image, annos, mask_miss, prob=0.5)
-    image, annos, mask_miss = tl.prepro.keypoint_resize_random_crop(image, annos, mask_miss, size=(hin, win)) # hao add
+    image, annos, mask_miss = tl.prepro.keypoint_resize_random_crop(image, annos, mask_miss, size=(hin, win))
 
-    # generate result maps including keypoints heatmap, pafs and mask
-    h, w, _ = np.shape(image)
     height, width, _ = np.shape(image)
     heatmap = get_heatmap(annos, height, width)
     vectormap = get_vectormap(annos, height, width)
     resultmap = np.concatenate((heatmap, vectormap), axis=2)
-
+    image = cv2.resize(image, (win,hin))
+    mask_miss = cv2.resize(mask_miss, (win,hin))
+    
     image = np.array(image, dtype=np.float32)
-
     img_mask = mask_miss.reshape(hin, win, 1)
     image = image * np.repeat(img_mask, 3, 2)
-
+    
+    mask_miss = cv2.resize(mask_miss, (wout,hout))
     resultmap = np.array(resultmap, dtype=np.float32)
-    mask_miss = imresize(mask_miss, (hout, wout))
     mask_miss = np.array(mask_miss, dtype=np.float32)
     return image, resultmap, mask_miss
 
@@ -120,10 +119,11 @@ def _mock_map_fn(img_list, annos):
     """TF Dataset pipeline."""
     image = tf.read_file(img_list)
     image = tf.image.decode_jpeg(image, channels=3)  # get RGB with 0~1
+    
     image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-
-    image = np.ones((hin, win, 3), dtype=np.float32)
-    resultmap = np.ones((hout, wout, 57), dtype=np.float32)
+    image = tf.image.resize_images(image,(hin, win))
+    #image = np.ones((hin, win, 3), dtype=np.float32)
+    resultmap = np.ones((hout, wout, n_pos*3), dtype=np.float32)
     mask = np.ones((hout, wout, 1), dtype=np.float32)
 
     return image, resultmap, mask
@@ -131,9 +131,9 @@ def _mock_map_fn(img_list, annos):
 class CocoMeta:
     """ Be used in PoseInfo. """
     limb = list(
-        zip(            
-		[1, 6, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4,18,19],
-		[1, 7, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4,18,19]))
+        zip(        
+        [2, 9,  10, 2,  12, 13, 2, 3, 4, 3,  2, 6, 7, 6,  2, 1,  1,  15, 16, 11,14],
+        [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18, 20,19]))
 
     def __init__(self, idx, img_url, img_meta, annotations, masks):
         self.idx = idx
@@ -325,7 +325,7 @@ def get_heatmap(annos, height, width):
 
     mapholder = []
     for i in range(0, num_joints):
-        a = imresize(np.array(joints_heatmap[:, :, i]), (hout, wout))
+        a = cv2.resize(np.array(joints_heatmap[:, :, i]), (wout,hout))
         mapholder.append(a)
     mapholder = np.array(mapholder)
     joints_heatmap = mapholder.transpose(1, 2, 0)
@@ -375,17 +375,21 @@ def get_vectormap(annos, height, width):
     """
     num_joints = n_pos
 
-    limb = list(
-        zip(        
-		[2, 9,  10, 2,  12, 13, 2, 3, 4, 3,  2, 6, 7, 6,  2, 1,  1,  15, 16, 11,14],
-        [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18, 20,19]))
+    limb = list(zip(
+        [2, 9,  10, 2,  12, 13, 2, 3, 4, 3,  2, 6, 7, 6,  2, 1,  1,  15, 16, 11,14],
+        [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18, 20,19]
+    ))
 
     vectormap = np.zeros((num_joints * 2, height, width), dtype=np.float32)
     counter = np.zeros((num_joints, height, width), dtype=np.int16)
 
     for joint in annos:
-        if len(joint) != 19:
+        if len(joint) != n_pos:
             print('THE LENGTH IS NOT 19 ERROR:', len(joint))
+            limb = list(zip(
+            [2, 9,  10, 2,  12, 13, 2, 3, 4, 3,  2, 6, 7, 6,  2, 1,  1,  15, 16],
+            [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18]
+            ))
         for i, (a, b) in enumerate(limb):
             a -= 1
             b -= 1
@@ -410,7 +414,7 @@ def get_vectormap(annos, height, width):
 
     mapholder = []
     for i in range(0, n_pos * 2):
-        a = cv2.resize(np.array(vectormap[:, :, i]), (hout, wout), interpolation=cv2.INTER_AREA)
+        a = cv2.resize(np.array(vectormap[:, :, i]), (wout,hout))
         mapholder.append(a)
     mapholder = np.array(mapholder)
     vectormap = mapholder.transpose(1, 2, 0)

@@ -10,12 +10,11 @@ import _pickle as cPickle
 import tensorlayer as tl
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_integer('nb_smpls_train', 60000, '# of samples for training')
+tf.app.flags.DEFINE_integer('nb_smpls_train', 50000, '# of samples for training')
 tf.app.flags.DEFINE_integer('nb_smpls_val', 5000, '# of samples for validation')
-tf.app.flags.DEFINE_integer('nb_smpls_eval', 10000, '# of samples for evaluation')
-tf.app.flags.DEFINE_integer('batch_size', 128, 'batch size per GPU for training')
-tf.app.flags.DEFINE_integer('batch_size_eval', 100, 'batch size for evaluation')
-
+tf.app.flags.DEFINE_integer('batch_size', 8, 'batch size per GPU for training')
+tf.app.flags.DEFINE_integer('batch_size_eval', 8, 'batch size for evaluation')
+#tf.app.flags.DEFINE_integer('prefetch_size', 80, 'batch size for prefetch')
 # Fashion-MNIST specifications
 IMAGE_HEI = 320
 IMAGE_WID = 384
@@ -48,8 +47,8 @@ class Dataset(AbstractDataset):
         imgs_file_list, objs_info_list, mask_list, targets = \
             get_pose_data_list(images_path, annotations_file_path)
     else:
-        images_path = os.path.join(path, "val2017")
-        annotations_file_path = os.path.join(path, "annotations_foot_body", "person_keypoints_val2017.json")
+        images_path = os.path.join(path, "train2017")
+        annotations_file_path = os.path.join(path, "annotations_foot_body", "person_keypoints_train2017.json")
         imgs_file_list, objs_info_list, mask_list, targets = \
             get_pose_data_list(images_path, annotations_file_path)
     def generator():
